@@ -1,4 +1,5 @@
 # Dendritic Spine Annotator
+This tool is a Python desktop application for measuring and tracking dendritic spine lengths across multiple microscopy images, allowing neuroscience researchers to annotate dendritic spines by drawing bounding boxes around them across a series of TIF images. The program automatically calculates diagonal measurements in both pixels and microns, tracks the same spine across multiple timepoints, and exports all data to CSV format for analysis.
 
 ## Step-by-Step Instructions
 ### Install Python
@@ -46,8 +47,19 @@ pip install pandas
 * Click "New Spine" to start annotating a different spine
 * Click "Save Data" to export all measurements to CSV (logs spine name, length in pixels, microns, and stability)
 
-Code parameters to change:
+**Customizable Code**
+
+Change the following conversion factors/parameters for length and stability calculation:
 ```
-self.pixel_to_micron = 1/11  # conversion factor, based on confocal microscope settings
-self.stability_threshold = 50  # placeholder (pixel length for spine to be considered stable/unstable)
+def __init__(self):
+   ...
+   self.pixel_to_micron = 1/11  # conversion factor, based on confocal microscope settings
+   self.stability_threshold = 50  # placeholder (pixel length for spine to be considered stable/unstable)
 ```
+If not using .tif files (e.g. jpg or png):
+```
+def load_images(self):
+   ...
+   extensions = ('.tif', '.tiff') # your extensions here
+```
+*Note: for ome.tif files, more code is needed to extract metadata and compress by layer (can still use tifffile library by Python)*
