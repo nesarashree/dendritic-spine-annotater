@@ -51,10 +51,9 @@ pip install pandas
 * Click "Save Data" to export all measurements to CSV (logs spine name, length in pixels, microns, and stability)
 
 ### Loading/Saving Previous Annotations
-Previous annotations for a series of image can be saved in the application to a JSON format, to be later opened and loaded on top of the same images. Implemented a spine dropdown selection in the top right corner for easy access and editing of previous spines (delete current + redraw). 
+Previous annotations for a series of image can be saved in the application to JSON format, to be later opened and loaded on top of the same images. Implemented a spine dropdown selection in the top right corner for easy access and editing of previous spines (delete current + redraw). 
 
-**Customizable Code**
-
+### Customizable Code
 Change the following conversion factors/parameters for length and stability calculation:
 ```
 def __init__(self):
