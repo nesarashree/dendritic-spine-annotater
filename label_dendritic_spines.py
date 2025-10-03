@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
 import numpy as np
-from PIL import Image, ImageTk, ImageDraw
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 import pandas as pd
 import os
 import math
@@ -124,7 +124,7 @@ class SpineAnnotationTool:
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief='sunken')
         status_bar.pack(fill='x', pady=(5, 0))
    
-    # load and normalize tif files from a folder for display
+    # load and normalize tif files from a folder for display (FIGURE OUT QUALITY ISSUE??)
     def load_images(self):
         folder_path = filedialog.askdirectory(title="Select folder containing images")
         if not folder_path:
@@ -147,16 +147,15 @@ class SpineAnnotationTool:
             img_array = tifffile.imread(img_path)         
             while img_array.ndim > 2:
                 img_array = img_array[0]
-            
-            # normalize to 8-bit for display
-            # NOTE: risks losing information for fainter spines and contrast adjustments made with z-projection flattening (see MATLAB folder)
+        
+            # normalize to 16-bit for display
             if img_array.dtype != np.uint8:
                 img_min, img_max = img_array.min(), img_array.max()
                 if img_max > img_min:
                     img_array = ((img_array - img_min) / (img_max - img_min) * 255).astype(np.uint8)
                 else:
                     img_array = np.zeros_like(img_array, dtype=np.uint8)
-            
+
             # convert to PIL Image, RGB
             img = Image.fromarray(img_array, mode='L').convert('RGB')
             
@@ -183,9 +182,22 @@ class SpineAnnotationTool:
                 x1, y1, x2, y2 = annotations[self.current_image_idx]
                 color = self.spine_colors.get(spine_name, 'gray')
                 draw.rectangle([x1, y1, x2, y2], outline=color, width=1)
-                draw.text((x1, y1-15), spine_name, fill=color)
-        
-        # update spine dropdown with all existing spines
+                draw.line([x1, y1, x2, y2], fill=color, width=1)  # draws diagonal
+
+                font = None
+                font_paths = ["/System/Library/Fonts/Helvetica.ttc"]
+                for font_path in font_paths:
+                    try:
+                        font = ImageFont.truetype(font_path, 8)  # size 8 for small text
+                        break
+                    except:
+                        continue
+                if font is None: # div by 0 error??
+                    font = ImageFont.load_default()
+                
+                display_text = spine_name.split('_')[-1] if '_' in spine_name else spine_name # just the number displayed, comment out for spine name
+                draw.text((x1, y1-12), display_text, fill=color, font=font) # replace display_text with spine_name!
+
         self.update_spine_dropdown()
 
         # zoom
@@ -310,27 +322,20 @@ class SpineAnnotationTool:
             self.current_spine_name = new_name
             self.update_display()
 
-    # select spine from dropdown
+    # select spine from dropdwon
     def on_spine_selected(self, event=None):
         selected_spine = self.spine_dropdown.get()
         if selected_spine:
             self.current_spine_name = selected_spine
             self.spine_name_var.set(selected_spine)
             self.update_display()
-            
-            # ehich images have this spine
-            annotated_images = list(self.spine_annotations[selected_spine].keys())
-            if annotated_images:
-                self.status_var.set(f"Selected {selected_spine} annotated on images: {sorted(annotated_images)}")
-            else:
-                self.status_var.set(f"Selected {selected_spine} no annotations yet")
     
     # update dropdown with all existing spines
     def update_spine_dropdown(self):
         spine_names = sorted(self.spine_annotations.keys())
         self.spine_dropdown['values'] = spine_names
         if self.current_spine_name in spine_names:
-            self.spine_dropdown.set(self.current_spine_name)
+            self.spine_dropdown.set(self.current_spine_name) 
         else:
             self.spine_dropdown.set('')
 
@@ -396,12 +401,12 @@ class SpineAnnotationTool:
             self.measurements_df.to_csv(filename, index=False)
             messagebox.showinfo("Success", f"Measurements saved to {filename}")
             
-    # load and save annotations (json)
+    # load and save annotations (json extensions)
     def save_annotations(self):
         import json
         filename = filedialog.asksaveasfilename(
             defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")], 
             title="Save annotations"
         )
         
