@@ -1,4 +1,4 @@
-# Dendritic Spine Annotator
+# Dendritic Spine Annotator Tool
 This tool is a Python desktop application for measuring and tracking dendritic spine lengths across multiple microscopy images, allowing neuroscience researchers to annotate dendritic spines by drawing bounding boxes around them across a series of TIF images. The program automatically calculates diagonal measurements in both pixels and microns, tracks the same spine across multiple timepoints, and exports all data to CSV format for analysis.
 <p align="center">
   <img src="screenshot.png" alt="Screenshot" width="600"/>
