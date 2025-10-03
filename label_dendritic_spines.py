@@ -25,11 +25,13 @@ class SpineAnnotationTool:
         self.image_paths: List[str] = []
         self.current_image_idx = 0
         self.current_spine_name = "spine_1"
+
+        # box annotations
         self.spine_annotations: Dict[str, Dict[int, Tuple[int, int, int, int]]] = {}  # spine_name, {image_idx: (x1, y1, x2, y2)}
         self.spine_colors: Dict[str, str] = {}
         self.measurements_df = pd.DataFrame(columns=['spine_name', 'image_idx', 'length_pixels', 'length_microns', 'stable'])
         
-        self.pixel_to_micron = 1/11  # conversion factor
+        self.pixel_to_micron = 1/7.75  # conversion factor
         self.stability_threshold = 50  # placeholder (pixel length for spine to be considered stable/unstable)
         
         # UI state
@@ -57,6 +59,9 @@ class SpineAnnotationTool:
         # file operations
         ttk.Button(control_frame, text="Load Images", command=self.load_images).pack(side='left', padx=2)
         ttk.Button(control_frame, text="Save Data", command=self.save_data).pack(side='left', padx=2)
+        ttk.Button(control_frame, text="Save Annotations", command=self.save_annotations).pack(side='left', padx=2)
+        ttk.Button(control_frame, text="Load Annotations", command=self.load_annotations).pack(side='left', padx=2)
+        
         
         ttk.Separator(control_frame, orient='vertical').pack(side='left', fill='y', padx=5)
         
@@ -69,6 +74,12 @@ class SpineAnnotationTool:
         
         ttk.Button(control_frame, text="New Spine", command=self.new_spine).pack(side='left', padx=2)
         ttk.Button(control_frame, text="Delete Current Box", command=self.delete_current_box).pack(side='left', padx=2)
+        
+        # dropdown for spine selection?
+        ttk.Label(control_frame, text="Select:").pack(side='left', padx=(10,2))
+        self.spine_dropdown = ttk.Combobox(control_frame, width=12, state='readonly')
+        self.spine_dropdown.pack(side='left', padx=2)
+        self.spine_dropdown.bind('<<ComboboxSelected>>', self.on_spine_selected)
         
         # navigation 
         nav_frame = ttk.Frame(main_frame)
@@ -173,6 +184,9 @@ class SpineAnnotationTool:
                 draw.rectangle([x1, y1, x2, y2], outline=color, width=1)
                 draw.text((x1, y1-15), spine_name, fill=color)
         
+        # update spine dropdown with all existing spines
+        self.update_spine_dropdown()
+
         # zoom
         if self.zoom_factor != 1.0:
             new_size = (int(img.width * self.zoom_factor), int(img.height * self.zoom_factor))
@@ -294,7 +308,31 @@ class SpineAnnotationTool:
         if new_name and new_name != self.current_spine_name:
             self.current_spine_name = new_name
             self.update_display()
+
+    # select spine from dropdown
+    def on_spine_selected(self, event=None):
+        selected_spine = self.spine_dropdown.get()
+        if selected_spine:
+            self.current_spine_name = selected_spine
+            self.spine_name_var.set(selected_spine)
+            self.update_display()
+            
+            # ehich images have this spine
+            annotated_images = list(self.spine_annotations[selected_spine].keys())
+            if annotated_images:
+                self.status_var.set(f"Selected {selected_spine} annotated on images: {sorted(annotated_images)}")
+            else:
+                self.status_var.set(f"Selected {selected_spine} no annotations yet")
     
+    # update dropdown with all existing spines
+    def update_spine_dropdown(self):
+        spine_names = sorted(self.spine_annotations.keys())
+        self.spine_dropdown['values'] = spine_names
+        if self.current_spine_name in spine_names:
+            self.spine_dropdown.set(self.current_spine_name)
+        else:
+            self.spine_dropdown.set('')
+
     # switch to annotating new spine + new color
     def new_spine(self):
         spine_name = simpledialog.askstring("New Spine", "Enter spine name:", initialvalue=f"spine_{len(self.spine_colors) + 1}")
@@ -356,6 +394,65 @@ class SpineAnnotationTool:
         if filename:
             self.measurements_df.to_csv(filename, index=False)
             messagebox.showinfo("Success", f"Measurements saved to {filename}")
+            
+    # load and save annotations (json)
+    def save_annotations(self):
+        import json
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Save annotations"
+        )
+        
+        if filename:
+            data = {
+                'spine_annotations': {spine: {str(k): v for k, v in annots.items()} 
+                                     for spine, annots in self.spine_annotations.items()},
+                'spine_colors': self.spine_colors,
+                'color_index': self.color_index,
+                'image_paths': self.image_paths
+            }
+            with open(filename, 'w') as f:
+                json.dump(data, f, indent=2)
+            messagebox.showinfo("Success", f"Annotations saved to {filename}")
+    
+    def load_annotations(self):
+        import json
+        filename = filedialog.askopenfilename(
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Load annotations"
+        )
+        
+        if filename:
+            with open(filename, 'r') as f:
+                data = json.load(f)
+            
+            self.spine_annotations = {spine: {int(k): tuple(v) for k, v in annots.items()} 
+                                     for spine, annots in data['spine_annotations'].items()}
+            self.spine_colors = data['spine_colors']
+            self.color_index = data['color_index']
+            
+            saved_paths = data.get('image_paths', [])
+            if saved_paths and saved_paths != self.image_paths:
+                    return
+            
+            self.measurements_df = pd.DataFrame(columns=['spine_name', 'image_idx', 'length_pixels', 'length_microns', 'stable'])
+            for spine_name, annotations in self.spine_annotations.items():
+                for image_idx, (x1, y1, x2, y2) in annotations.items():
+                    line_length_pixels = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+                    line_length_microns = line_length_pixels * self.pixel_to_micron
+                    is_stable = line_length_pixels < self.stability_threshold
+                    row_data = {
+                        'spine_name': spine_name,
+                        'image_idx': image_idx,
+                        'length_pixels': line_length_pixels,
+                        'length_microns': line_length_microns,
+                        'stable': is_stable
+                    }
+                    self.measurements_df = pd.concat([self.measurements_df, pd.DataFrame([row_data])], ignore_index=True)
+            
+            self.update_display()
+            messagebox.showinfo("Success", f"Annotations loaded from {filename}")
             
     def run(self):
         self.root.mainloop()
