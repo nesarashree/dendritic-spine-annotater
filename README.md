@@ -4,7 +4,7 @@ This tool is a Python desktop application for measuring and tracking dendritic s
   <img src="screenshot.png" alt="Screenshot" width="600"/>
 </p>
 
-## Step-by-Step Instructions
+##  Step-by-Step Instructions for Setup
 ### Install Python
 1. Download the latest [Python release](https://www.python.org/downloads/).
 2. Follow the installation prompts.
@@ -41,17 +41,18 @@ pip install pandas
 3. In VS Code, go to **File > Open** and open the `.py` file.  
 4. Click the **Run** button (▶) in the top-right corner of VS Code.
 
-## Usage
-* Click "Load Images" and select a folder containing TIF files
+## Application Usage
+* Click **"Load Images"** and select a folder containing TIF files
 * Enter a spine name (e.g., "spine_1") in the text field
-* Draw a bounding box around the spine by clicking and dragging (delete current annotation if needed)
+* Draw a bounding box around the spine by clicking and dragging, **"Delete Current Box"** and redraw as needed
 * Navigate to the next image 
 * Continue annotating the same spine across all images
-* Click "New Spine" to start annotating a different spine
-* Click "Save Data" to export all measurements to CSV (logs spine name, length in pixels, microns, and stability)
+* Click **"New Spine"** to start annotating a different spine
+* Select spine of interest in **spine dropdown** to edit/visit previous annotations
 
-### Loading/Saving Previous Annotations
-Previous annotations for a series of image can be saved in the application to JSON format, to be later opened and loaded on top of the same images. Implemented a spine dropdown selection in the top right corner for easy access and editing of previous spines (delete current + redraw). 
+### Loading/Saving Data
+* Click **"Save Data"** to export all measurements to CSV (logs spine name, length in pixels, microns, and stability)
+* Click **"Save Annotations"** to export bounding boxes in JSON format, **"Load Annotations"** on the same image folder the next time you open the app
 
 ### Customizable Code
 Change the following conversion factors/parameters for length and stability calculation:
