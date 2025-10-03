@@ -149,6 +149,7 @@ class SpineAnnotationTool:
                 img_array = img_array[0]
             
             # normalize to 8-bit for display
+            # NOTE: risks losing information for fainter spines and contrast adjustments made with z-projection flattening (see MATLAB folder)
             if img_array.dtype != np.uint8:
                 img_min, img_max = img_array.min(), img_array.max()
                 if img_max > img_min:
