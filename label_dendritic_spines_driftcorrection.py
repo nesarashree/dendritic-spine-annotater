@@ -1,4 +1,4 @@
-# IN PROGRESS: RIGID BODY IMAGE REGISTRATION (pyStackReg)
+# IN PROGRESS: RIGID-BODY IMAGE REGISTRATION (pyStackReg)
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, simpledialog
