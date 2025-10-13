@@ -12,7 +12,11 @@ $$
 $$
 
 The program spine_motility.py takes in an input of spine length values and their respective labels/time points (i.e. what you get when you "Save Data" using the application) and outputs a measure of motility as outlined in the paper by [Djurisic et al](https://www.pnas.org/doi/10.1073/pnas.1321092110).
-
+* s = spine index
+* length(s,t) = length of s at spine t
+* t	= time point variable (0, 5, 10, 15...)
+* 𝑇 = total observation period (constant, e.g., 30 mins)
+* δ	= time step between frames (5 min)
 
 ##  Step-by-Step Instructions for Setup
 ### Install Python
