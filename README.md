@@ -3,8 +3,16 @@ This tool is a Python desktop application (VS Code) for analyzing dendritic spin
 
 _UPDATE_: Added functionality to save annotations (in JSON format), load them on top of the images when starting a new session, and access/edit previous spines via dropdown selection.
 <p align="center">
-  <img src="screenshot.png" alt="Screenshot" width="600"/>
+  <img src="screenshot.png" alt="Screenshot" width="800"/>
 </p>
+
+## Spine Motility Analysis
+$$
+(\text{motility})_s = \frac{1}{T} \sum_{t=0}^{T-\delta} \big[\text{length}(s, t + \delta) - \text{length}(s, t)\big]
+$$
+
+The program spine_motility.py takes in an input of spine length values and their respective labels/time points (i.e. what you get when you "Save Data" using the application) and outputs a measure of motility as outlined in the paper by [Djurisic et al](https://www.pnas.org/doi/10.1073/pnas.1321092110).
+
 
 ##  Step-by-Step Instructions for Setup
 ### Install Python
