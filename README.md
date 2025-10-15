@@ -3,7 +3,7 @@ This tool is a Python desktop application (VS Code) for analyzing dendritic spin
 
 _UPDATE_: Added functionality to save annotations (in JSON format), load them on top of the images when starting a new session, and access/edit previous spines via dropdown selection.
 <p align="center">
-  <img src="screenshot.jpg" alt="Screenshot" width="800"/>
+  <img src="miscel/screenshot.jpg" alt="Screenshot" width="800"/>
 </p>
 
 ## Spine Motility Analysis
