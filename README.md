@@ -57,6 +57,7 @@ pip install pandas
 
 ## Application Usage
 * Click **"Load Images"** and select a folder containing TIF files
+* Optionally click **"Register Images"** to correct drift or misalignment across timepoints (rigid transformation)
 * Enter a spine name (e.g., "spine_1") in the text field
 * Draw a bounding box around the spine by clicking and dragging, **"Delete Current Box"** and redraw as needed (or simply drag from box corners to adjust size)
 * Navigate to the next image 
