@@ -58,7 +58,7 @@ pip install pandas
 ## Application Usage
 * Click **"Load Images"** and select a folder containing TIF files
 * Enter a spine name (e.g., "spine_1") in the text field
-* Draw a bounding box around the spine by clicking and dragging, **"Delete Current Box"** and redraw as needed
+* Draw a bounding box around the spine by clicking and dragging, **"Delete Current Box"** and redraw as needed (or simply drag from box corners to adjust size)
 * Navigate to the next image 
 * Continue annotating the same spine across all images
 * Click **"New Spine"** to start annotating a different spine
