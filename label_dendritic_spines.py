@@ -184,7 +184,7 @@ class SpineAnnotationTool:
         self.update_display()
         self.status_var.set(f"Loaded {len(self.images)} images, click Register Images to align stack")
 
-    # stackreg image registration (rigid body) to combat drift/misalignment across images
+    # stackreg image registration (rigid body) to combat drift/misalignment across images - WITH NOISE FIX
     def register_images(self):
         try:
             self.status_var.set("registering images")
@@ -193,31 +193,39 @@ class SpineAnnotationTool:
             # init stackreg with RIGID_BODY transformation
             sr = StackReg(StackReg.RIGID_BODY)
 
-            # first image to reference (grayscale numpy array)
-            reference = np.array(self.images[0].convert('L'))
+            # first image as reference (already a numpy array)
+            reference = self.images[0]
             registered_images = [self.images[0]]  # Keep first image as-is
             
             for i in range(1, len(self.images)):
-                moving = np.array(self.images[i].convert('L'))
+                moving = self.images[i]
                 # create/apply transformation matrix
                 tmats = sr.register(reference, moving)
-                img_array = np.array(self.images[i])
                 
-                registered_array = np.zeros_like(img_array)
-                for c in range(img_array.shape[2]):
-                    registered_array[:,:,c] = sr.transform(img_array[:,:,c], tmats)
+                # apply transformation
+                registered_array = sr.transform(moving, tmats)
                 
-                # convert back to PIL
-                registered_img = Image.fromarray(registered_array.astype(np.uint8))
-                registered_images.append(registered_img)
+                # REGISTRATION NOISE FIX?? clip values to reasonable range (remove extreme outliers that cause white noise)
+                p_low = np.percentile(moving, 0.1)
+                p_high = np.percentile(moving, 99.9)
+                
+                # replace outliers with local median
+                outlier_mask = (registered_array < p_low * 0.5) | (registered_array > p_high * 2.0)
+                if np.any(outlier_mask):
+                    # Use median of non-outlier pixels
+                    valid_median = np.median(registered_array[~outlier_mask])
+                    registered_array[outlier_mask] = valid_median
+                
+                # keep as numpy array (uint16)
+                registered_images.append(registered_array.astype(np.uint16))
                 print(f"Registered image {i+1}/{len(self.images)}")
             
             # replace images w registered versions
             self.images = registered_images
             self.registration_applied = True
-            
+            self.global_minmax = None   
             self.update_display()
-            messagebox.showinfo("success", "successfully registered")
+            messagebox.showinfo("success", "successfully registered images")
             
         except Exception as e:
             messagebox.showerror("error", f"registration failed: {str(e)}")
@@ -233,18 +241,18 @@ class SpineAnnotationTool:
         # 16-bit image array for the current frame
         img_array = self.images[self.current_image_idx]
 
-        # global normalization from all images (once)
+        # global normalization from all images(one time)
         if not hasattr(self, 'global_minmax') or self.global_minmax is None:
             all_vals = np.concatenate([im.ravel() for im in self.images])
             self.global_minmax = (np.percentile(all_vals, 0.1), np.percentile(all_vals, 99.9))
 
         vmin, vmax = self.global_minmax
 
-        # still grayscale
+        # normalize frame for display (atp grayscale)
         disp = np.clip((img_array - vmin) / (vmax - vmin), 0, 1)
         disp = (disp * 255).astype(np.uint8)
 
-        # convert to RGB for colored annotations layer
+        # RGB conversion layer for colored annotations
         img = Image.fromarray(disp, mode='L').convert('RGB')
         draw = ImageDraw.Draw(img)
 
@@ -254,8 +262,8 @@ class SpineAnnotationTool:
                 x1, y1, x2, y2 = annotations[self.current_image_idx]
                 color = self.spine_colors.get(spine_name, 'gray')
                 
-                draw.rectangle([x1, y1, x2, y2], outline=color, width=1) # change if u want box line to be thicker when selected for adjustment
-                draw.line([x1, y1, x2, y2], fill=color, width=1)  # diagonal
+                draw.rectangle([x1, y1, x2, y2], outline=color, width=1) # change width if u want to be thicker upon selection
+                draw.line([x1, y1, x2, y2], fill=color, width=1) # diagonal
 
                 # text label
                 try:
@@ -265,51 +273,55 @@ class SpineAnnotationTool:
                 display_text = spine_name.split('_')[-1] if '_' in spine_name else spine_name
                 draw.text((x1, y1 - 12), display_text, fill=color, font=font)
 
+        # spine dropdown (preserves UI state)
         self.update_spine_dropdown()
 
-        # zoom using nearest neighbor!! (preserves quality)
-        if self.zoom_factor != 1.0: 
+        # apply zoom using nearest-neighbor (PRESERVES QUALITY!!!!)
+        if self.zoom_factor != 1.0:
             new_size = (int(img.width * self.zoom_factor), int(img.height * self.zoom_factor))
             img = img.resize(new_size, Image.Resampling.NEAREST)
 
-        # convert to PhotoImage for display (for RGB annotations)
+        #  PhotoImage conversion for display
         self.photo_image = ImageTk.PhotoImage(img)
         self.canvas.delete("all")
         self.canvas.create_image(self.pan_x, self.pan_y, anchor='nw', image=self.photo_image)
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
         self.zoom_var.set(f"{int(self.zoom_factor * 100)}%")
 
-    # canvas coords to image coords conversion
+    # canvas to image coords helper function
     def canvas_to_image_coords(self, canvas_x, canvas_y):
         img_x = int((canvas_x - self.pan_x) / self.zoom_factor)
         img_y = int((canvas_y - self.pan_y) / self.zoom_factor)
         return img_x, img_y
     
-    # image coords to cavas coords conversion
+    # image to canvas coords helper function
     def image_to_canvas_coords(self, img_x, img_y):
         canvas_x = self.pan_x + img_x * self.zoom_factor
         canvas_y = self.pan_y + img_y * self.zoom_factor
         return canvas_x, canvas_y
     
-    # for corner dragging adjustment
-    def find_corner_at_point(self, img_x, img_y, howclose=None): 
+    # corner dragging adjustment feature
+    def find_corner_at_point(self, img_x, img_y, howclose=None):
+        # how close the mouse click (or drag point) has to be to a box corner for it to count as “selecting” that corner (threshold)
         if not self.images:
             return None, None
-        
-        # how close the mouse click (or drag point) has to be to a box corner for it to count as “selecting” that corner (threshold)
-        if howclose is None: 
-            howclose = max(8 / self.zoom_factor, 3)
             
+        if howclose is None:
+            howclose = max(8 / self.zoom_factor, 3)  # Scale with zoom
+            
+        # check current spine's box on current image
         if self.current_spine_name in self.spine_annotations:
             if self.current_image_idx in self.spine_annotations[self.current_spine_name]:
                 x1, y1, x2, y2 = self.spine_annotations[self.current_spine_name][self.current_image_idx]
-                corners = { # check corners first
+                
+                # corners first (priority)
+                corners = {
                     'tl': (x1, y1),
                     'tr': (x2, y1),
                     'bl': (x1, y2),
                     'br': (x2, y2)
-                }    
+                }
+                
                 for corner_name, (cx, cy) in corners.items():
                     if abs(img_x - cx) <= howclose and abs(img_y - cy) <= howclose:
                         return self.current_spine_name, corner_name
@@ -317,10 +329,11 @@ class SpineAnnotationTool:
                 # check edges (move entire box)
                 if (x1 <= img_x <= x2 and y1 <= img_y <= y2):
                     return self.current_spine_name, 'move'
+        
         return None, None
-    
-    # update cursor
+
     def on_canvas_motion(self, event):
+        """Update cursor based on what's under the mouse"""
         if not self.images or self.drawing:
             return
             
@@ -350,21 +363,21 @@ class SpineAnnotationTool:
         
         img_x, img_y = self.canvas_to_image_coords(canvas_x, canvas_y)
         
-        # Check if clicking on an existing box corner/edge
+        # check if clicking on an existing box corner/edge
         spine_name, corner = self.find_corner_at_point(img_x, img_y)
         
         if spine_name and corner:
-            # Start editing mode
+            # editing mode
             self.editing_mode = True
             self.editing_spine = spine_name
             self.editing_corner = corner
             self.start_x = img_x
             self.start_y = img_y
             
-            # Store original box coordinates
+            # storing og box coords
             self.original_box = self.spine_annotations[spine_name][self.current_image_idx]
         else:
-            # Start drawing new box
+            # drawing new box
             self.drawing = True
             self.start_x = img_x
             self.start_y = img_y
@@ -380,7 +393,7 @@ class SpineAnnotationTool:
         img_x, img_y = self.canvas_to_image_coords(canvas_x, canvas_y)
         
         if self.editing_mode:
-            # Edit existing box
+            # edit existing box
             x1, y1, x2, y2 = self.original_box
             dx = img_x - self.start_x
             dy = img_y - self.start_y
@@ -403,12 +416,12 @@ class SpineAnnotationTool:
                 x2 += dx
                 y2 += dy
             
-            # Update the annotation temporarily
+            # update the annotation temporarily
             self.spine_annotations[self.editing_spine][self.current_image_idx] = (x1, y1, x2, y2)
             self.update_display()
             
         elif self.drawing:
-            # Draw new box
+            # draw new box
             if self.current_box:
                 self.canvas.delete(self.current_box)
             
@@ -429,22 +442,19 @@ class SpineAnnotationTool:
         img_x, img_y = self.canvas_to_image_coords(canvas_x, canvas_y)
         
         if self.editing_mode:
-            # Finalize edit
             x1, y1, x2, y2 = self.spine_annotations[self.editing_spine][self.current_image_idx]
             
-            # Ensure proper ordering
             x1, x2 = min(x1, x2), max(x1, x2)
             y1, y2 = min(y1, y2), max(y1, y2)
             
-            # Update annotation with final coordinates
             self.spine_annotations[self.editing_spine][self.current_image_idx] = (x1, y1, x2, y2)
             
-            # Recalculate measurements
+            # recalculate measurements
             diagonal_pixels = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
             diagonal_microns = diagonal_pixels * self.pixel_to_micron
             is_stable = diagonal_pixels < self.stability_threshold
             
-            # Update measurements dataframe
+            # update measurements dataframe
             mask = (self.measurements_df['spine_name'] == self.editing_spine) & \
                    (self.measurements_df['image_idx'] == self.current_image_idx)
             self.measurements_df = self.measurements_df[~mask]
@@ -464,7 +474,7 @@ class SpineAnnotationTool:
             self.status_var.set(f"Updated: {self.editing_spine} - {diagonal_pixels:.1f} pixels, {diagonal_microns:.2f} μm")
             
         elif self.drawing:
-            # Save new box
+            # save new box
             self.save_annotation(self.start_x, self.start_y, img_x, img_y)
             self.drawing = False
             self.current_box = None
