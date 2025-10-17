@@ -230,32 +230,31 @@ class SpineAnnotationTool:
 
         self.image_info_var.set(f"Image {self.current_image_idx + 1} of {len(self.images)}")
 
-        # Get the 16-bit image array for the current frame
+        # 16-bit image array for the current frame
         img_array = self.images[self.current_image_idx]
 
-        # Compute global normalization from all images (once)
+        # global normalization from all images (once)
         if not hasattr(self, 'global_minmax') or self.global_minmax is None:
             all_vals = np.concatenate([im.ravel() for im in self.images])
             self.global_minmax = (np.percentile(all_vals, 0.1), np.percentile(all_vals, 99.9))
 
         vmin, vmax = self.global_minmax
 
-        # Normalize this frame for display (still grayscale)
+        # still grayscale
         disp = np.clip((img_array - vmin) / (vmax - vmin), 0, 1)
         disp = (disp * 255).astype(np.uint8)
 
-        # Convert to RGB for colored annotations
+        # convert to RGB for colored annotations layer
         img = Image.fromarray(disp, mode='L').convert('RGB')
         draw = ImageDraw.Draw(img)
 
-        # Draw all spine annotations (in color)
+        # draw spine annotations (in color)
         for spine_name, annotations in self.spine_annotations.items():
             if self.current_image_idx in annotations:
                 x1, y1, x2, y2 = annotations[self.current_image_idx]
                 color = self.spine_colors.get(spine_name, 'gray')
                 
-                # Keep line width consistent at 1
-                draw.rectangle([x1, y1, x2, y2], outline=color, width=1)
+                draw.rectangle([x1, y1, x2, y2], outline=color, width=1) # change if u want box line to be thicker when selected for adjustment
                 draw.line([x1, y1, x2, y2], fill=color, width=1)  # diagonal
 
                 # text label
@@ -266,68 +265,62 @@ class SpineAnnotationTool:
                 display_text = spine_name.split('_')[-1] if '_' in spine_name else spine_name
                 draw.text((x1, y1 - 12), display_text, fill=color, font=font)
 
-        # Update spine dropdown (preserves UI state)
         self.update_spine_dropdown()
 
-        # Apply zoom using nearest-neighbor (pixel-accurate)
-        if self.zoom_factor != 1.0:
+        # zoom using nearest neighbor!! (preserves quality)
+        if self.zoom_factor != 1.0: 
             new_size = (int(img.width * self.zoom_factor), int(img.height * self.zoom_factor))
             img = img.resize(new_size, Image.Resampling.NEAREST)
 
-        # Convert to PhotoImage for display
+        # convert to PhotoImage for display (for RGB annotations)
         self.photo_image = ImageTk.PhotoImage(img)
         self.canvas.delete("all")
         self.canvas.create_image(self.pan_x, self.pan_y, anchor='nw', image=self.photo_image)
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-        # Update zoom indicator
         self.zoom_var.set(f"{int(self.zoom_factor * 100)}%")
 
+    # canvas coords to image coords conversion
     def canvas_to_image_coords(self, canvas_x, canvas_y):
-        """Convert canvas coordinates to image coordinates"""
         img_x = int((canvas_x - self.pan_x) / self.zoom_factor)
         img_y = int((canvas_y - self.pan_y) / self.zoom_factor)
         return img_x, img_y
     
+    # image coords to cavas coords conversion
     def image_to_canvas_coords(self, img_x, img_y):
-        """Convert image coordinates to canvas coordinates"""
         canvas_x = self.pan_x + img_x * self.zoom_factor
         canvas_y = self.pan_y + img_y * self.zoom_factor
         return canvas_x, canvas_y
     
-    def find_corner_at_point(self, img_x, img_y, tolerance=None):
-        """Find which corner/edge of current spine's box is near the point"""
+    # for corner dragging adjustment
+    def find_corner_at_point(self, img_x, img_y, howclose=None): 
         if not self.images:
             return None, None
+        
+        # how close the mouse click (or drag point) has to be to a box corner for it to count as “selecting” that corner (threshold)
+        if howclose is None: 
+            howclose = max(8 / self.zoom_factor, 3)
             
-        if tolerance is None:
-            tolerance = max(8 / self.zoom_factor, 3)  # Scale with zoom
-            
-        # Check current spine's box on current image
         if self.current_spine_name in self.spine_annotations:
             if self.current_image_idx in self.spine_annotations[self.current_spine_name]:
                 x1, y1, x2, y2 = self.spine_annotations[self.current_spine_name][self.current_image_idx]
-                
-                # Check corners first (priority)
-                corners = {
+                corners = { # check corners first
                     'tl': (x1, y1),
                     'tr': (x2, y1),
                     'bl': (x1, y2),
                     'br': (x2, y2)
-                }
-                
+                }    
                 for corner_name, (cx, cy) in corners.items():
-                    if abs(img_x - cx) <= tolerance and abs(img_y - cy) <= tolerance:
+                    if abs(img_x - cx) <= howclose and abs(img_y - cy) <= howclose:
                         return self.current_spine_name, corner_name
                 
-                # Check edges (move entire box)
+                # check edges (move entire box)
                 if (x1 <= img_x <= x2 and y1 <= img_y <= y2):
                     return self.current_spine_name, 'move'
-        
         return None, None
-
+    
+    # update cursor
     def on_canvas_motion(self, event):
-        """Update cursor based on what's under the mouse"""
         if not self.images or self.drawing:
             return
             
