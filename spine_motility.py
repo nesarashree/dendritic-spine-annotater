@@ -4,46 +4,72 @@ import matplotlib.pyplot as plt
 from scipy import stats
 import os
 
-# loading spines: from a csv file :
+# Set this to your actual time interval between frames (in minutes)
+FRAME_INTERVAL_MIN = 5  # ← change if needed
+
 def calculate_motility(csv_file):
     df = pd.read_csv(csv_file)
     df.columns = df.columns.str.strip()
     print(f"cols in CSV {df.columns.tolist()}")
 
-    spines = df['spine_name'].unique() # treat each spine name as a unique object (each gets its own motility calculation in output!)
+    # Filter to only properly named spines
+    df = df[df['spine_name'].str.match(r'^spine_\d+$', na=False)]
+
+    spines = df['spine_name'].unique()
     print(f"unique spines found in CSV {spines}")
 
     results = []
-    
+
     for spine in spines:
         spine_data = df[df['spine_name'] == spine].copy()
-        spine_data = spine_data.sort_values('Time (min)')
+        spine_data = spine_data.sort_values('image_idx')  # CRITICAL: sort by time
         
-        lengths = spine_data['length_microns'].values
-        times = spine_data['Time (min)'].values
-        
-        T = times[-1] - times[0] # total time duration
+        # Reset index after sorting
+        spine_data = spine_data.reset_index(drop=True)
 
-        # calculate summation by looping over lengths t=0 to t=T-delta
+        lengths = spine_data['length_microns'].values
+        frames = spine_data['image_idx'].values
+
+        if len(lengths) < 2:
+            print(f"  Skipping {spine}: not enough timepoints")
+            continue
+
+        # Calculate total time based on ACTUAL frame differences, not just first-last
+        # This accounts for missing frames
+        total_time = 0
         sum_differences = 0
-        for i in range(len(lengths)-1):
-            current_length = lengths[i] # lengths(s,t)
-            next_length = lengths[i+1] # advance time point to lengths(s,t+delta) 
-            difference = abs(next_length - current_length) # abs value bc spine can be growing/shrinking 
-            sum_differences += difference
         
-        # calculate motility as 1/T * summation
-        motility = (1/T) * sum_differences
-        
+        for i in range(len(lengths) - 1):
+            # Time between consecutive measurements
+            frame_diff = frames[i+1] - frames[i]
+            time_diff = frame_diff * FRAME_INTERVAL_MIN
+            
+            # Length change
+            length_diff = abs(lengths[i+1] - lengths[i])
+            
+            # Add to totals
+            total_time += time_diff
+            sum_differences += length_diff
+
+        if total_time == 0:
+            print(f"  Skipping {spine}: zero time duration")
+            continue
+
+        # Motility = (1/T) * sum of absolute length changes
+        motility = sum_differences / total_time
+
         results.append({
             'spine_name': spine,
-            'motility (microns per min)': motility
+            'motility (microns per min)': motility,
+            'n_timepoints': len(lengths),
+            'total_time_min': total_time
         })
-    
+
     return pd.DataFrame(results)
 
+
 if __name__ == "__main__":
-    folder_path = "/Users/nesarashree/Downloads/spinemotilityCSVtests"  # folder containing CSVs
+    folder_path = "/Users/nesarashree/Downloads/CSV-scaled-time=5"
     all_results = []
 
     for file in os.listdir(folder_path):
@@ -51,39 +77,51 @@ if __name__ == "__main__":
             csv_file = os.path.join(folder_path, file)
             print(f"\nProcessing: {csv_file}")
             motility_results = calculate_motility(csv_file)
-            motility_results['source_file'] = file  # track which CSV it came from
+            motility_results['source_file'] = file
             all_results.append(motility_results)
 
     if all_results:
         combined_results = pd.concat(all_results, ignore_index=True)
-        print("\nall motility results:")
+        print("\nAll motility results:")
         print(combined_results.to_string(index=False))
-        
-        combined_results.to_csv('motility_results.csv', index=False)
-        print("\nresults saved to 'motility_results.csv'")
 
-        # visualize
+        # Summary statistics
+        print("\n=== SUMMARY STATISTICS ===")
+        for file in combined_results['source_file'].unique():
+            subset = combined_results[combined_results['source_file'] == file]
+            motility_values = subset['motility (microns per min)']
+            print(f"\n{file}:")
+            print(f"  n = {len(motility_values)} spines")
+            print(f"  Mean ± SEM: {motility_values.mean():.4f} ± {motility_values.sem():.4f}")
+            print(f"  Median: {motility_values.median():.4f}")
+            print(f"  Range: {motility_values.min():.4f} - {motility_values.max():.4f}")
+
+        combined_results.to_csv('motility_results.csv', index=False)
+        output_path = os.path.abspath('motility_results.csv')  # Get full path
+        print(f"\nResults saved to: {output_path}")
+
+        # Visualize
         fig, ax = plt.subplots(figsize=(10, 6))
-        file_groups = combined_results.groupby('source_file')['motility (microns per min)'] # take from the results csv
-        means = file_groups.mean() # average of spine motilities for each file
+        file_groups = combined_results.groupby('source_file')['motility (microns per min)']
+        means = file_groups.mean()
         sems = file_groups.sem()
-        
-        # init bar chart
+
         x_pos = np.arange(len(means))
-        ax.bar(x_pos, means, yerr = sems, capsize = 5, color='pink', edgecolor='black', linewidth=2, width=0.6)
-        
-        ax.set_ylabel('motility (um/min)', fontsize=12, fontweight='bold')
+        ax.bar(x_pos, means, yerr=sems, capsize=5,
+               color='pink', edgecolor='black', linewidth=2, width=0.6)
+
+        ax.set_ylabel('Motility (µm/min)', fontsize=12, fontweight='bold')
         ax.set_xticks(x_pos)
-        ax.set_xticklabels([f.replace('.csv', '') for f in means.index], 
+        ax.set_xticklabels([f.replace('.csv', '') for f in means.index],
                            rotation=45, ha='right', fontsize=10, fontweight='bold')
         ax.set_ylim(0, max(means) * 1.3)
         ax.tick_params(width=2, length=6)
         for spine in ax.spines.values():
             spine.set_linewidth(2)
-        
+
         plt.tight_layout()
         plt.savefig('motility_bar_chart.png', dpi=300, bbox_inches='tight')
         plt.show()
-        print("\n bar chart saved to 'motility_bar_chart.png'")
+        print("\nBar chart saved to 'motility_bar_chart.png'")
     else:
-        print("no CSV files found")
+        print("No CSV files found")
