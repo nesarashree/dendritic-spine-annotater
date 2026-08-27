@@ -2,7 +2,11 @@
 
 **VIDEO DEMO:** [Click the screenshot below to watch the demo](https://drive.google.com/file/d/1F7QA-EI5dU_VGI1h1vxkyLXLWRyrHrah/view?resourcekey)
 
-[<img src="miscel/screenshot.jpg" alt="Dendritic Spine Annotator Screenshot" width="800"/>](https://drive.google.com/file/d/1F7QA-EI5dU_VGI1h1vxkyLXLWRyrHrah/view?resourcekey)
+<p align="center">
+  <a href="https://drive.google.com/file/d/1F7QA-EI5dU_VGI1h1vxkyLXLWRyrHrah/view?resourcekey">
+    <img src="miscel/screenshot.jpg" alt="Dendritic Spine Annotator Screenshot" width="800"/>
+  </a>
+</p>
 
 This tool is a Python desktop application (VS Code) for analyzing dendritic spines across multiple microscopy images, allowing neuroscience researchers to efficiently annotate, count, and track dendritic spine lengths by drawing bounding boxes across a series of TIF images. The program automatically calculates diagonal measurements in both pixels and microns, tracks the same spine across multiple timepoints, and exports all data to CSV format for analysis.
 
