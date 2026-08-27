@@ -6,7 +6,7 @@ This tool is a Python desktop application (VS Code) for analyzing dendritic spin
 
 <p align="center">
   <a href="https://drive.google.com/file/d/1F7QA-EI5dU_VGI1h1vxkyLXLWRyrHrah/view?resourcekey">
-    <img src="miscel/screenshot.jpg" alt="Dendritic Spine Annotator Screenshot" width="800"/>
+    <img src="miscel/screenshot.jpg" alt="Dendritic Spine Annotator Screenshot" width="1000"/>
   </a>
 </p>
 
