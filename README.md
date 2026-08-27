@@ -1,6 +1,6 @@
 # Dendritic Spine Annotator & Motility Analysis Tool
 
-**VIDEO DEMO:** [Click the screenshot below to watch the demo](https://drive.google.com/file/d/1F7QA-EI5dU_VGI1h1vxkyLXLWRyrHrah/view?resourcekey)
+**VIDEO DEMO:** [Click the image below to watch the demo!](https://drive.google.com/file/d/1F7QA-EI5dU_VGI1h1vxkyLXLWRyrHrah/view?resourcekey)
 
 <p align="center">
   <a href="https://drive.google.com/file/d/1F7QA-EI5dU_VGI1h1vxkyLXLWRyrHrah/view?resourcekey">
